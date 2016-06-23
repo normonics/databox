@@ -3,5 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name = "databox",
     version = "0.0.1",
-    packages = find_packages(),
+    packages=['databox',],
 )
+
+  # packages = find_packages()
