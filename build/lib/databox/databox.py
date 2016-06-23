@@ -1,10 +1,14 @@
-"""the databox module is a collection of (hopefully) useful data-related 
+"""
+The databox module is a collection of (hopefully) useful data-related 
 functions, including handling, analysis, and visualization
 """
 
 import matplotlib.pyplot as plt 
 import numpy as np 
 import pandas as pd 
+# from pymongo import MongoClient()
+
+#------------------------------------------------------------------------    
 
 def pca(df):
     """Perform a principal components analysis on data in a DataFrame"""
@@ -30,22 +34,38 @@ def pca(df):
     projected_points = np.dot(df_normalized.values, eig_vectors)
     
     return projected_points, eig_values, eig_vectors
+  
+#------------------------------------------------------------------------    
 
 def plot_pca(projected_points, eig_values, eig_vectors, labels):
-    """Function to plot the first two dimensions of a PCA analysis along with its principal components and (normed) eigenvalues """
+    """Function to plot the first two dimensions of a PCA analysis 
+    along with its principal components and (normed) eigenvalues """
+
     fig, ax = plt.subplots(2,2, figsize=(10,10))
 
     ax[0,1].scatter(projected_points[:,0], projected_points[:,1])
     ax[0,1].set_xlabel('PC1')
     ax[0,1].set_ylabel('PC2')
-    ax[0,1].set_title('PCA of individuals based on their std')
+    ax[0,1].set_title('PCA scatter')
 
-    ax[1,1].bar(range(eig_vectors.shape[0]), eig_vectors[:,0])
+    ax[1,1].bar(np.arange(eig_vectors.shape[0]) + 0.1, eig_vectors[:,0])
     ax[1,1].xaxis.set_ticklabels(labels)
+    ax[1,1].set_title('PC1')
 
-    ax[0,0].bar(range(eig_vectors.shape[0]), eig_vectors[:,1])
+    ax[0,0].bar(np.arange(eig_vectors.shape[0]) + 0.1, eig_vectors[:,1])
     ax[0,0].xaxis.set_ticklabels(labels)
+    ax[0,0].set_title('PC2')
 
-    ax[1,0].plot(eig_values / eig_values.sum())
+    ax[1,0].plot(eig_values / eig_values.sum(), lw=2)
+    ax[1,0].set_title('Eigenvalues (normalized)')
 
-plt.show()
+    plt.show()
+
+#------------------------------------------------------------------------    
+
+def mongo_to_df(collection, query={}, fields=None):
+    """return a mongo query as a DataFrame"""
+    records = collection.find(query, projection=fields)
+    
+    return pd.DataFrame(list(records))
+
