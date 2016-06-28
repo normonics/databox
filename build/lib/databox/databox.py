@@ -51,7 +51,8 @@ def pca(df):
 
 def plot_pca(projected_points, eig_values, eig_vectors, labels):
     """Function to plot the first two dimensions of a PCA analysis 
-    along with its principal components and (normed) eigenvalues """
+    along with its principal components and (normed) eigenvalues 
+    """
 
     fig, ax = plt.subplots(2,2, figsize=(10,10))
 
@@ -82,21 +83,20 @@ def plot_pca(projected_points, eig_values, eig_vectors, labels):
 
 #------------------------------------------------------------------------    
 
-def mc_pca(df, N=100):
+def mc_pca(df, N=99):
     """Take a dataframe and establish the significance of the largest eigenvalue 
     via a monte carlo approach
     """
 
-    _, eig_values, _ = pca(df) 
-    true_largest_eig_value = eig_values[0]
+    _, observed_eig_values, _ = pca(df) 
 
-    largest_eig_values = np.zeros(N)
+    mc_eig_values = np.zeros((N, df.shape[1]))
     for n in xrange(N):
         df_shuffled = shuffle_df(df)
         _, eig_values, _ = pca(df_shuffled)
-        largest_eig_values[n] = eig_values[0]
+        mc_eig_values[n,:] = eig_values
 
-    return true_largest_eig_value, largest_eig_values
+    return observed_eig_values, mc_eig_values
 
 
 #------------------------------------------------------------------------    
@@ -140,11 +140,25 @@ def cross_scatter(df_1, df_2, lin_regress=True):
 #------------------------------------------------------------------------    
 
 def shuffle_df(df):
-    """Shuffles the values in each column of a DataFrame and returns the shuffled frame.
-    Useful for e.g. monte carlo analysis
+    """Shuffles the values in each column of a DataFrame and returns the 
+    shuffled frame. Useful for e.g. monte carlo analysis
     """
 
     df = df.copy()
     df.apply(np.random.shuffle, axis=0)
 
     return df 
+
+#------------------------------------------------------------------------   
+
+def color_scatter_by_df(x, y, df):
+    """Produce a scatter plot colored by the values in each column 
+    of a DataFrame
+    """
+
+    for column in df.columns:
+        plt.figure()
+        plt.scatter(x, y, c=df[column].values)
+        plt.colorbar()
+        plt.title(column)
+        plt.show()
