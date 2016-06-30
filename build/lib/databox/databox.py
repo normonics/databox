@@ -96,7 +96,26 @@ def mc_pca(df, N=99):
         _, eig_values, _ = pca(df_shuffled)
         mc_eig_values[n,:] = eig_values
 
-    return observed_eig_values, mc_eig_values
+    # create dataframe for simulation output
+    # columns = ['PC'+i for i in range(df.shape[1])]
+
+    mc_eig_values = pd.DataFrame(data=mc_eig_values)
+
+    # build a summary table
+    # columns = [
+    #     'Observed Eigenvalue', 'Median', 'Quantile 0.75', 'Quantile 0.90', 
+    #     'Quantile 0.95', 'Quantile 0.99', 'P-Value']
+
+    df_summary = pd.DataFrame()
+
+    df_summary['Observed Eigenvalue'] = observed_eig_values
+    df_summary['Median'] = mc_eig_values.median()
+    df_summary['Quantile 0.75'] = mc_eig_values.quantile(0.75)
+    df_summary['Quantile 0.90'] = mc_eig_values.quantile(0.90)
+    df_summary['Quantile 0.95'] = mc_eig_values.quantile(0.95)
+    df_summary['Quantile 0.99'] = mc_eig_values.quantile(0.99)
+
+    return df_summary
 
 
 #------------------------------------------------------------------------    
