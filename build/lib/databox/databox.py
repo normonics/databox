@@ -49,10 +49,13 @@ def pca(df):
   
 #------------------------------------------------------------------------    
 
-def plot_pca(projected_points, eig_values, eig_vectors, labels):
+def plot_pca(projected_points, eig_values, eig_vectors, labels=None):
     """Function to plot the first two dimensions of a PCA analysis 
     along with its principal components and (normed) eigenvalues 
     """
+
+    if not labels:
+        labels = range(len(eig_values))
 
     fig, ax = plt.subplots(2,2, figsize=(10,10))
 
