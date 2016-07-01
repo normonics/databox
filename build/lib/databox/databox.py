@@ -64,15 +64,19 @@ def plot_pca(projected_points, eig_values, eig_vectors, labels=None):
     ax[0,1].set_ylabel('PC2')
     ax[0,1].set_title('PCA scatter')
 
-    ax[1,1].bar(np.arange(eig_vectors.shape[0]) + 0.1, eig_vectors[:,0])
+    ax[1,1].bar(
+        np.arange(eig_vectors.shape[0]) + 0.1, 
+        eig_vectors[:,0] * np.sqrt(eig_values[0]))
     ax[1,1].xaxis.set_ticks(np.arange(len(labels)) + 0.5)
     ax[1,1].xaxis.set_ticklabels(labels)
-    ax[1,1].set_title('PC1')
+    ax[1,1].set_title('PC1 loadings')
 
-    ax[0,0].bar(np.arange(eig_vectors.shape[0]) + 0.1, eig_vectors[:,1])
+    ax[0,0].bar(
+        np.arange(eig_vectors.shape[0]) + 0.1, 
+        eig_vectors[:,1] * np.sqrt(eig_values[1]))
     ax[0,0].xaxis.set_ticks(np.arange(len(labels)) + 0.5)
     ax[0,0].xaxis.set_ticklabels(labels)
-    ax[0,0].set_title('PC2')
+    ax[0,0].set_title('PC2 loadings')
 
     ax[1,0].plot(eig_values / eig_values.sum(), lw=2)
     ax[1,0].set_title('Eigenvalues (normalized)')
