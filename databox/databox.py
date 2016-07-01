@@ -70,6 +70,8 @@ def plot_pca(projected_points, eig_values, eig_vectors, labels=None):
     ax[1,1].xaxis.set_ticks(np.arange(len(labels)) + 0.5)
     ax[1,1].xaxis.set_ticklabels(labels)
     ax[1,1].set_title('PC1 loadings')
+    for ticklabel in ax[1,1].get_xticklabels():
+        ticklabel.set_rotation('vertical')
 
     ax[0,0].bar(
         np.arange(eig_vectors.shape[0]) + 0.1, 
@@ -77,6 +79,8 @@ def plot_pca(projected_points, eig_values, eig_vectors, labels=None):
     ax[0,0].xaxis.set_ticks(np.arange(len(labels)) + 0.5)
     ax[0,0].xaxis.set_ticklabels(labels)
     ax[0,0].set_title('PC2 loadings')
+    for ticklabel in ax[0,0].get_xticklabels():
+        ticklabel.set_rotation('vertical')
 
     ax[1,0].plot(eig_values / eig_values.sum(), lw=2)
     ax[1,0].set_title('Eigenvalues (normalized)')
