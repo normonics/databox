@@ -167,8 +167,11 @@ def shuffle_df(df):
     """
 
     df = df.copy()
-    df.apply(np.random.shuffle, axis=0)
+    # df.apply(np.random.shuffle, axis=0)
 
+    for column in df.columns:
+        df[column] = np.random.permutation(df[column])
+    
     return df 
 
 #------------------------------------------------------------------------   
