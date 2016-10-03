@@ -1,6 +1,7 @@
 setup.py
 databox/__init__.py
 databox/databox.py
+databox/fb.py
 databox.egg-info/PKG-INFO
 databox.egg-info/SOURCES.txt
 databox.egg-info/dependency_links.txt
