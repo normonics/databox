@@ -11,6 +11,9 @@ import numpy as np
 import pandas as pd 
 import urllib2 as ul2
 
+def string_to_datetime(time_string):
+        return datetime.datetime.strptime(time_string[0:10], '%Y-%m-%d' )
+
 def get_insight(graph, object_id, metric):
     """
     arguments: graph is a facebook graph object )already credentialed 
@@ -23,19 +26,19 @@ def get_insight(graph, object_id, metric):
 
 
 def get_insight_date_range(
-                            graph, object_id='1301323933227680', insights=['page_impressions'], 
-                            date_range=['2016-09-14', '2016-09-28'], period='day'
+                            graph, object_id, insights=['page_impressions'], 
+                            date_range=['2016-09-14', '2016-10-05'], period='day'
                             ):
+    """
+    Works for insights where relevant data are structured as fb_response['data'][i]['values'][j]['value']
+    page_video_views being an example
+    """
     
     
     def extract_period(fb_response, period='day'):
         for datum in fb_response['data']:
             if datum['period'] == period:
-                return datum
-            
-    def string_to_datetime(time_string):
-#         return np.datetime64(time_string[0:10])
-        return datetime.datetime.strptime(time_string[0:10], '%Y-%m-%d' )
+                return datum            
     
     def insight_to_df(fb_response):
         daily_data = extract_period(fb_response)
@@ -73,3 +76,47 @@ def get_insight_date_range(
         
     
     return df
+
+def get_cities_date_range(graph, object_id, date_range=['2016-05-01', '2016-10-04']):
+    
+    from_date, to_date = string_to_datetime(date_range[0]), string_to_datetime(date_range[1])
+    
+    def get_dates_from_fb_response(fb_response):
+        date_list = []
+        for entry in fb_response['data'][0]['values']:
+            date_list.append(string_to_datetime(entry['end_time'][0:10]))
+        date_list = np.array(date_list)
+        return date_list
+    
+    def fb_response_to_df(fb_response):
+        df = pd.DataFrame()
+        for date in fb_response['data'][0]['values']:
+            current_date = string_to_datetime(date['end_time'])
+            for city in date['value']:
+                df.loc[current_date, city] = date['value'][city]
+            
+        
+        return df
+    
+    fb_response = get_insight(graph, object_id, 'page_fans_city')
+    
+    date_list = get_dates_from_fb_response(fb_response)
+    
+    while from_date < date_list.min():
+        previous_page = fb_response['paging']['previous']
+        fb_response = json.load(ul2.urlopen(previous_page))
+        date_list = get_dates_from_fb_response(fb_response)
+        
+    df = pd.DataFrame()
+    while to_date > date_list.max():
+#         print fb_response
+        current_df = fb_response_to_df(fb_response)
+        df = pd.concat([df, current_df])
+        
+        next_page = fb_response['paging']['next']
+        fb_response = json.load(ul2.urlopen(next_page))
+        date_list = get_dates_from_fb_response(fb_response)
+    df = pd.concat([df, current_df])
+    
+    return df
+        
