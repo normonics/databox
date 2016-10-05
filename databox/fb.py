@@ -1,187 +1,75 @@
 """
-The databox module is a collection of useful data-related 
-functions, including handling, analysis, and visualization
+The fb sub-module of databox contains facebook-specific functions
+it also utilizes the facebook module (facebook2 in pip)
+It interacts with the Facebook Graph API 
 """
 
-import matplotlib.pyplot as plt 
-import numpy as np 
+import datetime
+import facebook
+import json
+import numpy as np
 import pandas as pd 
-import scipy.stats as stats
-# from pymongo import MongoClient()
+import urllib2 as ul2
 
-#------------------------------------------------------------------------    
-
-def mongo_to_df(collection, query={}, fields=None):
-    """return a mongo query as a DataFrame
+def get_insight(graph, object_id, metric):
     """
-
-    records = collection.find(query, projection=fields)
-    
-    return pd.DataFrame(list(records))
-
-#------------------------------------------------------------------------    
-
-def pca(df):
-    """Perform a principal components analysis on data in a DataFrame
+    arguments: graph is a facebook graph object )already credentialed 
+    with access token, object_id is the fb id as a string (could be a page, post, etc.)
+    metric is the name of the insigh metric as a string 
+    for Graph API insights documentation see: 
+    https://developers.facebook.com/docs/graph-api/reference/v2.5/insights
     """
+    return graph.get_object(id=object_id+'/insights/'+metric)
+
+
+def get_insight_date_range(
+                            graph, object_id='1301323933227680', insights=['page_impressions'], 
+                            date_range=['2016-09-14', '2016-09-28'], period='day'
+                            ):
     
-    # normalize the data
-    df_normalized = (df - df.mean()) / df.std()
-    corr_matrix = np.corrcoef(df_normalized, rowvar=0)
-    eig_values, eig_vectors = np.linalg.eig(corr_matrix)
     
-    # sort eig values and eigvectors
-    eig_vectors = np.array(
-                    [v[1] for v in sorted(
-                        zip(eig_values, eig_vectors.transpose()), reverse=True
-                            )]).transpose()
-    eig_values = np.array(sorted(eig_values, reverse=True))
-
-    # make eigenvectors primarily positive for easier interpretation
-    for col in range(eig_vectors.shape[1]):
-        if eig_vectors[:,col].sum() < 0:
-            eig_vectors[:,col] = -eig_vectors[:,col]
+    def extract_period(fb_response, period='day'):
+        for datum in fb_response['data']:
+            if datum['period'] == period:
+                return datum
+            
+    def string_to_datetime(time_string):
+#         return np.datetime64(time_string[0:10])
+        return datetime.datetime.strptime(time_string[0:10], '%Y-%m-%d' )
     
-    # project normalized points to prinipal components
-    projected_points = np.dot(df_normalized.values, eig_vectors)
-    
-    return projected_points, eig_values, eig_vectors
-  
-#------------------------------------------------------------------------    
-
-def plot_pca(projected_points, eig_values, eig_vectors, labels=None):
-    """Function to plot the first two dimensions of a PCA analysis 
-    along with its principal components and (normed) eigenvalues 
-    """
-
-    if labels is None:
-        labels = range(len(eig_values))
-
-    fig, ax = plt.subplots(2,2, figsize=(10,10))
-
-    ax[0,1].scatter(projected_points[:,0], projected_points[:,1])
-    ax[0,1].set_xlabel('PC1')
-    ax[0,1].set_ylabel('PC2')
-    ax[0,1].set_title('PCA scatter')
-
-    ax[1,1].bar(
-        np.arange(eig_vectors.shape[0]) + 0.1, 
-        eig_vectors[:,0] * np.sqrt(eig_values[0]))
-    ax[1,1].xaxis.set_ticks(np.arange(len(labels)) + 0.5)
-    ax[1,1].xaxis.set_ticklabels(labels)
-    ax[1,1].set_title('PC1 loadings')
-    for ticklabel in ax[1,1].get_xticklabels():
-        ticklabel.set_rotation('vertical')
-
-    ax[0,0].bar(
-        np.arange(eig_vectors.shape[0]) + 0.1, 
-        eig_vectors[:,1] * np.sqrt(eig_values[1]))
-    ax[0,0].xaxis.set_ticks(np.arange(len(labels)) + 0.5)
-    ax[0,0].xaxis.set_ticklabels(labels)
-    ax[0,0].set_title('PC2 loadings')
-    for ticklabel in ax[0,0].get_xticklabels():
-        ticklabel.set_rotation('vertical')
-
-    ax[1,0].plot(eig_values / eig_values.sum(), lw=2)
-    ax[1,0].set_title('Eigenvalues (normalized)')
-
-    plt.show()
-
-#------------------------------------------------------------------------       
-
-def mc_pca(df, N=99):
-    """Take a dataframe and establish the significance of the largest eigenvalue 
-    via a monte carlo approach
-    """
-
-    _, observed_eig_values, _ = pca(df) 
-
-    mc_eig_values = np.zeros((N, df.shape[1]))
-    for n in xrange(N):
-        df_shuffled = shuffle_df(df)
-        _, eig_values, _ = pca(df_shuffled)
-        mc_eig_values[n,:] = eig_values
-
-    #convert eigenvalus array to dataframe for useful functions 
-    mc_eig_values = pd.DataFrame(data=mc_eig_values)
-
-    # build summary dataframe
-    df_summary = pd.DataFrame()
-    df_summary['Observed Eigenvalue'] = observed_eig_values
-    df_summary['Mean'] = mc_eig_values.mean()
-    df_summary['Std'] = mc_eig_values.std()
-    df_summary['Median'] = mc_eig_values.median()
-    df_summary['Quantile 0.75'] = mc_eig_values.quantile(0.75)
-    df_summary['Quantile 0.90'] = mc_eig_values.quantile(0.90)
-    df_summary['Quantile 0.95'] = mc_eig_values.quantile(0.95)
-    df_summary['Quantile 0.99'] = mc_eig_values.quantile(0.99)
-    df_summary['P-value'] = (
-        ((mc_eig_values>=observed_eig_values).sum().values.astype('float') + 1)
-        / (N+1))
+    def insight_to_df(fb_response):
+        daily_data = extract_period(fb_response)
+        df = pd.DataFrame(daily_data['values']) 
+        df['end_time'] = df['end_time'].map(string_to_datetime)
+        df['end_time'] = df['end_time'].values - np.timedelta64(1,'D')
+        df.columns = ['date', insight]
+        df.index = df['date']
+        del df['date']
+        return df
         
-    return df_summary
-
-#------------------------------------------------------------------------    
-
-def cross_scatter(df_1, df_2, lin_regress=True):
-    """Takes two DataFrames and builds the scatter plots of all their combinations
-    """
-
-    labels_1 = df_1.columns
-    labels_2 = df_2.columns
-
-    fig, ax = plt.subplots(len(labels_2), len(labels_1), figsize=(14,14))
-    fig.subplots_adjust(wspace = 0.15, hspace=0.1)
-
-    for i, label_1 in enumerate(labels_1):
-        for j, label_2 in enumerate(labels_2):
-            # scatter plot
-            ax[j,i].scatter(df_1[label_1], df_2[label_2])
-            
-            # linear regression and plot
-            slope, intercept, r_value, p_value, std_err = stats.linregress(
-                df_1[label_1], df_2[label_2]
-            )
-            
-            x = np.linspace(df_1[label_1].min(), df_1[label_1].max())
-            ax[j,i].plot(x, slope*x+intercept, 'r', lw=3)
-            
-            if i != 0:
-                ax[j,i].set_yticklabels([])
-            if j != df_2.shape[1]-1:
-                ax[j,i].set_xticklabels([])
-            if i == 0:
-                ax[j,i].set_ylabel(label_2)
-            if j == df_2.shape[1]-1:
-                ax[j,i].set_xlabel(label_1)
-                for ticklabel in ax[j,i].get_xticklabels():
-                    ticklabel.set_rotation('vertical')
-
-    return fig, ax
-
-#------------------------------------------------------------------------    
-
-def shuffle_df(df):
-    """Shuffles the values in each column of a DataFrame and returns the 
-    shuffled frame. Useful for e.g. monte carlo analysis
-    """
-
-    df = df.copy()
-    for column in df.columns:
-        df[column] = np.random.permutation(df[column])
+    from_date, to_date = string_to_datetime(date_range[0]), string_to_datetime(date_range[1])
     
-    return df 
+    df = pd.DataFrame()
+    for insight in insights:
+        # grab initial daily data, convert to dataframe, convert strings to datetime
+        current_fb_response = get_insight(graph, object_id, insight)
 
-#------------------------------------------------------------------------   
+        temp_df = insight_to_df(current_fb_response)
 
-def color_scatter_by_df(x, y, df):
-    """Produce a scatter plot colored by the values in each column 
-    of a DataFrame
-    """
+        while from_date < temp_df.index.min():
+            previous_page = current_fb_response['paging']['previous']
+            current_fb_response = json.load(ul2.urlopen(previous_page))
+            temp_df = insight_to_df(current_fb_response)
 
-    for column in df.columns:
-        plt.figure()
-        plt.scatter(x, y, c=df[column].values)
-        plt.colorbar()
-        plt.title(column)
-        plt.show()
+        current_df = temp_df
+
+        while to_date > temp_df.index.max():
+            next_page = current_fb_response['paging']['next']
+            current_fb_response = json.load(ul2.urlopen(next_page))
+            temp_df = insight_to_df(current_fb_response)
+            current_df = pd.concat([current_df, temp_df])
+
+        df = pd.concat([df, current_df], axis=1)
+        
+    
+    return df
