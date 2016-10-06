@@ -25,6 +25,16 @@ def get_insight(graph, object_id, metric):
     return graph.get_object(id=object_id+'/insights/'+metric)
 
 
+def get_insight_since_until(access_token, object_id, metric, since, until):
+    
+    query_url = (
+        'https://graph.facebook.com/v2.2/' + object_id + '/insights/' + metric +
+        '?access_token=' + access_token + '&since=' + since + '&until=' + until
+        )
+
+    return json.load(ul2.urlopen(query_url))
+
+
 def get_insight_date_range(
                             graph, object_id, insights=['page_impressions'], 
                             date_range=['2016-09-14', '2016-10-05'], period='day'
@@ -116,7 +126,30 @@ def get_cities_date_range(graph, object_id, date_range=['2016-05-01', '2016-10-0
         next_page = fb_response['paging']['next']
         fb_response = json.load(ul2.urlopen(next_page))
         date_list = get_dates_from_fb_response(fb_response)
+
+    current_df = fb_response_to_df(fb_response)    
     df = pd.concat([df, current_df])
+    
+    return df
+
+def get_positive_feedback_week(access_token, page_id, date):
+    
+    next_date = date[0:9] + str(int(date[9])+1)
+    
+    fb_response = get_insight_since_until(access_token, page_id, 'page_positive_feedback_by_type', date, next_date)
+    
+    def extract_week(fb_response):
+        for entry in fb_response['data']:
+            if entry['period'] == 'week':
+                return entry
+            
+    week_data = extract_week(fb_response)
+    
+    df = pd.DataFrame(index=[string_to_datetime(date)], data=week_data['values'][0]['value'])
+    
+    del df['answer'], df['claim'], df['rsvp']
+    
+    df['total'] = df.sum(axis=1).values[0]
     
     return df
         
