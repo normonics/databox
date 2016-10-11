@@ -1,18 +1,19 @@
 """
-The fb sub-module of databox contains facebook-specific functions
-it also utilizes the facebook module (facebook2 in pip)
+The fb sub-module of databox contains Facebook-specific functions
 It interacts with the Facebook Graph API 
 """
 
 import datetime
 import facebook
 import json
+import matplotlib.pyplot as plt 
 import numpy as np
 import pandas as pd 
 import urllib2 as ul2
 import warnings
 
-from geopy import Nominatim
+from geopy.geocoders import Nominatim
+from mpl_toolkits.basemap import Basemap
 
 ###################################################################################
 
@@ -22,7 +23,67 @@ def string_to_datetime(time_string):
 
 ###################################################################################
 
-def get_insight(access_token, object_id, metric, since=None, until=None, period=None):
+def get_object(access_token, object_id, fields=None):
+
+	if fields:
+		fields_string = '&fields=' + fields
+	else:
+		fields_string = ''
+
+	query_url = (
+		'https://graph.facebook.com/v2.5/' + object_id + 
+		'?access_token=' + access_token +
+		fields_string
+		)
+
+	return json.load(ul2.urlopen(query_url))
+
+
+###################################################################################
+
+def introspect(access_token, object_id):
+	'''
+	Returns a facebook node's available edges (connections) and fields
+	'''
+	query_url = (
+		'https://graph.facebook.com/v2.5/' + object_id + 
+		'?access_token=' + access_token + '&metadata=1'
+		)
+
+	return json.load(ul2.urlopen(query_url))
+
+
+###################################################################################
+
+def get_posts(access_token, page_id, limit=10):
+
+	"""
+	Max limit is 100, per Graph API limitations. 
+	"""
+	
+	query_url = (
+		'https://graph.facebook.com/v2.5/' + page_id + 
+		'?access_token=' + access_token +
+		'&fields=posts.limit(' + str(limit) + ')'
+		)
+
+	fb_response = json.load(ul2.urlopen(query_url))
+	df = pd.DataFrame.from_dict(fb_response['posts']['data'])
+	df.index = df['id']
+	del df['id']
+
+	return df
+
+
+###################################################################################
+
+def get_comments(access_token, post_id):
+	pass
+
+
+###################################################################################
+
+def get_insight(access_token, object_id, metric='', since=None, until=None, period=None):
     
     if period:
         period_string = '&period=' + period
@@ -123,6 +184,42 @@ def map_story_tellers_by_city(access_token, object_id, date, period='week'):
     my_map.scatter(x, y, s=cities['count'].values*8)
 
     plt.show()
+
+
+###################################################################################
+
+def draw_video_view_map(access_token, post_id):
+    
+    fb_response = get_insight(access_token, post_id, metric='post_video_view_time_by_region_id')
+    
+    df = pd.DataFrame.from_dict(fb_response['data'][0]['values'][0]['value'], orient='index')
+    df.columns = ['view_time']
+    
+    geolocator = Nominatim()
+    
+    for region in df.index:
+        location = geolocator.geocode(region)
+        df.loc[region, 'lat'] =  location.latitude
+        df.loc[region, 'lon'] =  location.longitude
+        
+    plt.figure(figsize=(8,8))
+
+    my_map = Basemap(projection='merc', 
+                     llcrnrlon=-125, llcrnrlat=24,
+                     urcrnrlon=-66, urcrnrlat=51,
+                     resolution='l', area_thresh=1000.0)
+
+    my_map.drawcoastlines()
+    my_map.drawcountries()
+    my_map.drawstates()
+    # my_map.fillcontinents(color='green')
+
+    x,y = my_map(df.lon.values, df.lat.values)
+    my_map.scatter(x, y, s=df['view_time'].values*0.0001)
+
+    plt.show()
+    
+    return df
 
 
 
