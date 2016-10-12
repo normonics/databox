@@ -222,6 +222,38 @@ def draw_video_view_map(access_token, post_id):
     return df
 
 
+###################################################################################
+
+def plot_video_retention(access_token, post_id):
+    fb_response = get_insight(access_token, post_id, metric='post_video_retention_graph')
+    
+    data = fb_response['data'][0]['values'][0]['value']
+    
+    proportion_retained = []
+    for i in range(len(data)):
+        proportion_retained.append(data[str(i)])
+        
+    plt.plot(proportion_retained)
+    plt.title('Viewer Retention')
+    plt.xlabel('Timepoint in video')
+    plt.xticks([0, 40], ['Beginning', 'End'])
+    plt.ylabel('Proportion of viewers retained')
+    
+    return
+
+
+###################################################################################
+
+def get_video_post_summary(access_token, post_id):
+	video_view_count = get_insight(access_token, post_id, metric='post_video_views', period='lifetime')['data'][0]['values'][0]['value']
+	share_count = get_object(access_token, post_id, fields='shares')['shares']['count']
+	like_count = get_object(access_token, post_id, fields='likes.limit(1).summary(true)')['likes']['summary']['total_count']
+	comment_count = get_object(access_token, post_id, fields='comments.limit(1).summary(true)')['comments']['summary']['total_count']
+
+	print "The Injury Prevention video has been viewed " + str(video_view_count) + " times,"
+	print "shared " + str(share_count) + " times,"
+	print "liked " + str(like_count) + " times,"
+	print "and commented on " + str(comment_count) + " times."
 
 ###################################################################################
 # FUNCTIONS THAT USE FACEBOOK MODULE BELOW. WORKING ON DEPRECATING.
