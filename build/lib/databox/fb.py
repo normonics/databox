@@ -8,11 +8,13 @@ import facebook
 import json
 import matplotlib.pyplot as plt 
 import numpy as np
+import os
 import pandas as pd 
 import urllib2 as ul2
 import warnings
 
 from geopy.geocoders import Nominatim
+from matplotlib.patches import Polygon
 from mpl_toolkits.basemap import Basemap
 
 ###################################################################################
@@ -25,60 +27,60 @@ def string_to_datetime(time_string):
 
 def get_object(access_token, object_id, fields=None):
 
-	if fields:
-		fields_string = '&fields=' + fields
-	else:
-		fields_string = ''
+    if fields:
+        fields_string = '&fields=' + fields
+    else:
+        fields_string = ''
 
-	query_url = (
-		'https://graph.facebook.com/v2.5/' + object_id + 
-		'?access_token=' + access_token +
-		fields_string
-		)
+    query_url = (
+        'https://graph.facebook.com/v2.5/' + object_id + 
+        '?access_token=' + access_token +
+        fields_string
+        )
 
-	return json.load(ul2.urlopen(query_url))
+    return json.load(ul2.urlopen(query_url))
 
 
 ###################################################################################
 
 def introspect(access_token, object_id):
-	'''
-	Returns a facebook node's available edges (connections) and fields
-	'''
-	query_url = (
-		'https://graph.facebook.com/v2.5/' + object_id + 
-		'?access_token=' + access_token + '&metadata=1'
-		)
+    '''
+    Returns a facebook node's available edges (connections) and fields
+    '''
+    query_url = (
+        'https://graph.facebook.com/v2.5/' + object_id + 
+        '?access_token=' + access_token + '&metadata=1'
+        )
 
-	return json.load(ul2.urlopen(query_url))
+    return json.load(ul2.urlopen(query_url))
 
 
 ###################################################################################
 
 def get_posts(access_token, page_id, limit=10):
 
-	"""
-	Max limit is 100, per Graph API limitations. 
-	"""
-	
-	query_url = (
-		'https://graph.facebook.com/v2.5/' + page_id + 
-		'?access_token=' + access_token +
-		'&fields=posts.limit(' + str(limit) + ')'
-		)
+    """
+    Max limit is 100, per Graph API limitations. 
+    """
+    
+    query_url = (
+        'https://graph.facebook.com/v2.5/' + page_id + 
+        '?access_token=' + access_token +
+        '&fields=posts.limit(' + str(limit) + ')'
+        )
 
-	fb_response = json.load(ul2.urlopen(query_url))
-	df = pd.DataFrame.from_dict(fb_response['posts']['data'])
-	df.index = df['id']
-	del df['id']
+    fb_response = json.load(ul2.urlopen(query_url))
+    df = pd.DataFrame.from_dict(fb_response['posts']['data'])
+    df.index = df['id']
+    del df['id']
 
-	return df
+    return df
 
 
 ###################################################################################
 
 def get_comments(access_token, post_id):
-	pass
+    pass
 
 
 ###################################################################################
@@ -91,14 +93,14 @@ def get_insight(access_token, object_id, metric='', since=None, until=None, peri
         period_string = ''
 
     if since:
-    	since_string = '&since=' + since
+        since_string = '&since=' + since
     else:
-    	since_string = ''
+        since_string = ''
 
     if until:
-    	until_string = '&until=' + until
+        until_string = '&until=' + until
     else:
-    	until_string = ''
+        until_string = ''
     
     query_url = (
         'https://graph.facebook.com/v2.5/' + object_id + '/insights/' + metric +
@@ -112,9 +114,9 @@ def get_insight(access_token, object_id, metric='', since=None, until=None, peri
 
 def get_insight_since_until(access_token, object_id, metric, since, until, period=None):
     
-	warnings.warn("get_insight_since_until() is deprecated. Use get_insight() instead.")
+    warnings.warn("get_insight_since_until() is deprecated. Use get_insight() instead.")
 
-	return get_insight(access_token, object_id, metric, since, until, period)
+    return get_insight(access_token, object_id, metric, since, until, period)
 
 
 ###################################################################################
@@ -189,37 +191,93 @@ def map_story_tellers_by_city(access_token, object_id, date, period='week'):
 ###################################################################################
 
 def draw_video_view_map(access_token, post_id):
-    
     fb_response = get_insight(access_token, post_id, metric='post_video_view_time_by_region_id')
-    
     df = pd.DataFrame.from_dict(fb_response['data'][0]['values'][0]['value'], orient='index')
     df.columns = ['view_time']
-    
-    geolocator = Nominatim()
-    
-    for region in df.index:
-        location = geolocator.geocode(region)
-        df.loc[region, 'lat'] =  location.latitude
-        df.loc[region, 'lon'] =  location.longitude
-        
-    plt.figure(figsize=(8,8))
 
-    my_map = Basemap(projection='merc', 
-                     llcrnrlon=-125, llcrnrlat=24,
-                     urcrnrlon=-66, urcrnrlat=51,
-                     resolution='l', area_thresh=1000.0)
+    cmap = plt.get_cmap('Blues')
+    this_dir, this_file = os.path.split(__file__)
 
-    my_map.drawcoastlines()
-    my_map.drawcountries()
-    my_map.drawstates()
-    # my_map.fillcontinents(color='green')
+    def remove_suffix(string):
+        return string[0:-16]
 
-    x,y = my_map(df.lon.values, df.lat.values)
-    my_map.scatter(x, y, s=df['view_time'].values*0.0001)
+    df.index = df.index.map(remove_suffix)
+    df['view_time'] = df['view_time'].values / float(df['view_time'].max())
+    fig = plt.figure(figsize=(20,10))
+
+    ax1 = plt.subplot2grid((2,6), (0,0))
+    map1 = Basemap(llcrnrlon=-179.15,llcrnrlat=51.21,urcrnrlon=-129.98,urcrnrlat=71.44,
+            projection='merc')
+    map1.readshapefile(this_dir + '/geodata/cb_2015_us_state_20m', name='states', drawbounds=True)
+
+    ax2 = plt.subplot2grid((2,6), (1,0))
+    map2 = Basemap(llcrnrlon=-160.25, llcrnrlat=18.91, urcrnrlon=-154.81, urcrnrlat=22.24,
+            projection='merc')
+    map2.readshapefile(this_dir + '/geodata/cb_2015_us_state_20m', name='states', drawbounds=True)
+
+    ax3 = plt.subplot2grid((2,6), (0,1), rowspan=2, colspan=4)
+    map3 = Basemap(llcrnrlon=-119,llcrnrlat=22,urcrnrlon=-64,urcrnrlat=49,
+            projection='lcc',lat_1=33,lat_2=45,lon_0=-95)
+    map3.readshapefile(this_dir + '/geodata/cb_2015_us_state_20m', name='states', drawbounds=True)
+
+
+
+    # collect the state names from the shapefile attributes so we can
+    # look up the shape obect for a state by its name
+    state_names = []
+    for shape_dict in map1.states_info:
+        state_names.append(shape_dict['NAME'])
+
+    # get each state and draw the filled polygon
+    for state in df.index:
+        state_indices = [i for i, x in enumerate(state_names) if x == state]
+        for state_index in state_indices:
+
+            seg = map1.states[state_index]
+            poly = Polygon(seg, facecolor=cmap(df.loc[state, 'view_time']) ,edgecolor=cmap(df.loc[state, 'view_time']))
+            ax1.add_patch(poly) 
+
+            seg = map2.states[state_index]
+            poly = Polygon(seg, facecolor=cmap(df.loc[state, 'view_time']) ,edgecolor=cmap(df.loc[state, 'view_time']))
+            ax2.add_patch(poly) 
+
+            seg = map3.states[state_index]
+            poly = Polygon(seg, facecolor=cmap(df.loc[state, 'view_time']) ,edgecolor=cmap(df.loc[state, 'view_time']))
+            ax3.add_patch(poly) 
 
     plt.show()
+# def draw_video_view_map(access_token, post_id):
     
-    return df
+#     fb_response = get_insight(access_token, post_id, metric='post_video_view_time_by_region_id')
+    
+#     df = pd.DataFrame.from_dict(fb_response['data'][0]['values'][0]['value'], orient='index')
+#     df.columns = ['view_time']
+    
+#     geolocator = Nominatim()
+    
+#     for region in df.index:
+#         location = geolocator.geocode(region)
+#         df.loc[region, 'lat'] =  location.latitude
+#         df.loc[region, 'lon'] =  location.longitude
+        
+#     plt.figure(figsize=(8,8))
+
+#     my_map = Basemap(projection='merc', 
+#                      llcrnrlon=-125, llcrnrlat=24,
+#                      urcrnrlon=-66, urcrnrlat=51,
+#                      resolution='l', area_thresh=1000.0)
+
+#     my_map.drawcoastlines()
+#     my_map.drawcountries()
+#     my_map.drawstates()
+#     # my_map.fillcontinents(color='green')
+
+#     x,y = my_map(df.lon.values, df.lat.values)
+#     my_map.scatter(x, y, s=df['view_time'].values*0.0001)
+
+#     plt.show()
+    
+#     return df
 
 
 ###################################################################################
@@ -245,15 +303,15 @@ def plot_video_retention(access_token, post_id):
 ###################################################################################
 
 def get_video_post_summary(access_token, post_id):
-	video_view_count = get_insight(access_token, post_id, metric='post_video_views', period='lifetime')['data'][0]['values'][0]['value']
-	share_count = get_object(access_token, post_id, fields='shares')['shares']['count']
-	like_count = get_object(access_token, post_id, fields='likes.limit(1).summary(true)')['likes']['summary']['total_count']
-	comment_count = get_object(access_token, post_id, fields='comments.limit(1).summary(true)')['comments']['summary']['total_count']
+    video_view_count = get_insight(access_token, post_id, metric='post_video_views', period='lifetime')['data'][0]['values'][0]['value']
+    share_count = get_object(access_token, post_id, fields='shares')['shares']['count']
+    like_count = get_object(access_token, post_id, fields='likes.limit(1).summary(true)')['likes']['summary']['total_count']
+    comment_count = get_object(access_token, post_id, fields='comments.limit(1).summary(true)')['comments']['summary']['total_count']
 
-	print "The Injury Prevention video has been viewed " + str(video_view_count) + " times,"
-	print "shared " + str(share_count) + " times,"
-	print "liked " + str(like_count) + " times,"
-	print "and commented on " + str(comment_count) + " times."
+    print "The Injury Prevention video has been viewed " + str(video_view_count) + " times,"
+    print "shared " + str(share_count) + " times,"
+    print "liked " + str(like_count) + " times,"
+    print "and commented on " + str(comment_count) + " times."
 
 ###################################################################################
 # FUNCTIONS THAT USE FACEBOOK MODULE BELOW. WORKING ON DEPRECATING.

@@ -1,3 +1,4 @@
+MANIFEST.in
 setup.py
 databox/__init__.py
 databox/databox.py
@@ -6,3 +7,12 @@ databox.egg-info/PKG-INFO
 databox.egg-info/SOURCES.txt
 databox.egg-info/dependency_links.txt
 databox.egg-info/top_level.txt
+databox/geodata/.DS_Store
+databox/geodata/cb_2015_us_state_20m.cpg
+databox/geodata/cb_2015_us_state_20m.dbf
+databox/geodata/cb_2015_us_state_20m.prj
+databox/geodata/cb_2015_us_state_20m.shp
+databox/geodata/cb_2015_us_state_20m.shp.ea.iso.xml
+databox/geodata/cb_2015_us_state_20m.shp.iso.xml
+databox/geodata/cb_2015_us_state_20m.shp.xml
+databox/geodata/cb_2015_us_state_20m.shx
