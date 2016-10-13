@@ -17,13 +17,12 @@ from geopy.geocoders import Nominatim
 from matplotlib.patches import Polygon
 from mpl_toolkits.basemap import Basemap
 
-###################################################################################
+#---------------------------------------------------------------------------------
 
 def string_to_datetime(time_string):
         return datetime.datetime.strptime(time_string[0:10], '%Y-%m-%d' )
 
-
-###################################################################################
+#---------------------------------------------------------------------------------
 
 def get_object(access_token, object_id, fields=None):
 
@@ -40,8 +39,7 @@ def get_object(access_token, object_id, fields=None):
 
     return json.load(ul2.urlopen(query_url))
 
-
-###################################################################################
+#---------------------------------------------------------------------------------
 
 def introspect(access_token, object_id):
     '''
@@ -54,8 +52,7 @@ def introspect(access_token, object_id):
 
     return json.load(ul2.urlopen(query_url))
 
-
-###################################################################################
+#---------------------------------------------------------------------------------
 
 def get_posts(access_token, page_id, limit=10):
 
@@ -76,14 +73,12 @@ def get_posts(access_token, page_id, limit=10):
 
     return df
 
-
-###################################################################################
+#---------------------------------------------------------------------------------
 
 def get_comments(access_token, post_id):
     pass
 
-
-###################################################################################
+#---------------------------------------------------------------------------------
 
 def get_insight(access_token, object_id, metric='', since=None, until=None, period=None):
     
@@ -109,8 +104,7 @@ def get_insight(access_token, object_id, metric='', since=None, until=None, peri
 
     return json.load(ul2.urlopen(query_url))
 
-
-###################################################################################
+#---------------------------------------------------------------------------------
 
 def get_insight_since_until(access_token, object_id, metric, since, until, period=None):
     
@@ -118,8 +112,7 @@ def get_insight_since_until(access_token, object_id, metric, since, until, perio
 
     return get_insight(access_token, object_id, metric, since, until, period)
 
-
-###################################################################################
+#---------------------------------------------------------------------------------
 
 def get_positive_feedback_week(access_token, page_id, date):
     
@@ -142,8 +135,7 @@ def get_positive_feedback_week(access_token, page_id, date):
     
     return df
 
-
-###################################################################################
+#---------------------------------------------------------------------------------
 
 def get_story_tellers_by_city(access_token, object_id, date, period='week'):
     next_date = date[0:9] + str(int(date[9])+1)
@@ -163,9 +155,8 @@ def get_story_tellers_by_city(access_token, object_id, date, period='week'):
     
     return cities_df
 
-
-###################################################################################    
-
+#---------------------------------------------------------------------------------
+    
 def map_story_tellers_by_city(access_token, object_id, date, period='week'):
     
     cities = get_story_tellers_by_city(access_token, object_id, date, period=period)
@@ -187,8 +178,7 @@ def map_story_tellers_by_city(access_token, object_id, date, period='week'):
 
     plt.show()
 
-
-###################################################################################
+#---------------------------------------------------------------------------------
 
 def draw_video_view_map(access_token, post_id):
     fb_response = get_insight(access_token, post_id, metric='post_video_view_time_by_region_id')
@@ -246,41 +236,8 @@ def draw_video_view_map(access_token, post_id):
             ax3.add_patch(poly) 
 
     plt.show()
-# def draw_video_view_map(access_token, post_id):
-    
-#     fb_response = get_insight(access_token, post_id, metric='post_video_view_time_by_region_id')
-    
-#     df = pd.DataFrame.from_dict(fb_response['data'][0]['values'][0]['value'], orient='index')
-#     df.columns = ['view_time']
-    
-#     geolocator = Nominatim()
-    
-#     for region in df.index:
-#         location = geolocator.geocode(region)
-#         df.loc[region, 'lat'] =  location.latitude
-#         df.loc[region, 'lon'] =  location.longitude
-        
-#     plt.figure(figsize=(8,8))
 
-#     my_map = Basemap(projection='merc', 
-#                      llcrnrlon=-125, llcrnrlat=24,
-#                      urcrnrlon=-66, urcrnrlat=51,
-#                      resolution='l', area_thresh=1000.0)
-
-#     my_map.drawcoastlines()
-#     my_map.drawcountries()
-#     my_map.drawstates()
-#     # my_map.fillcontinents(color='green')
-
-#     x,y = my_map(df.lon.values, df.lat.values)
-#     my_map.scatter(x, y, s=df['view_time'].values*0.0001)
-
-#     plt.show()
-    
-#     return df
-
-
-###################################################################################
+#---------------------------------------------------------------------------------
 
 def plot_video_retention(access_token, post_id):
     fb_response = get_insight(access_token, post_id, metric='post_video_retention_graph')
@@ -299,8 +256,7 @@ def plot_video_retention(access_token, post_id):
     
     return
 
-
-###################################################################################
+#---------------------------------------------------------------------------------
 
 def get_video_post_summary(access_token, post_id):
     video_view_count = get_insight(access_token, post_id, metric='post_video_views', period='lifetime')['data'][0]['values'][0]['value']
@@ -312,6 +268,38 @@ def get_video_post_summary(access_token, post_id):
     print "shared " + str(share_count) + " times,"
     print "liked " + str(like_count) + " times,"
     print "and commented on " + str(comment_count) + " times."
+
+#---------------------------------------------------------------------------------
+
+def plot_video_view_time_age_gender(access_token, post_id):
+    fb_response = get_insight(access_token, post_id, metric='post_video_view_time_by_age_bucket_and_gender')
+    gender_age = fb_response['data'][0]['values'][0]['value']
+
+    for demo in gender_age:
+        gender_age[demo] = float(gender_age[demo])/60000
+        
+    width = 0.5
+    ind = np.arange(7)+(1-width)/2
+    ticks = np.arange(7) + 0.5
+    tick_labels = ('13-17', '18-24', '25-34', '35-44', '45-54', '55-64', '65+')
+    
+    men = [gender_age['M.13-17'], gender_age['M.18-24'], gender_age['M.25-34'], gender_age['M.35-44'], 
+          gender_age['M.45-54'], gender_age['M.55-64'], gender_age['M.65+']]
+    
+    women = [gender_age['F.13-17'], gender_age['F.18-24'], gender_age['F.25-34'], gender_age['F.35-44'], 
+          gender_age['F.45-54'], gender_age['F.55-64'], gender_age['F.65+']]
+    
+    p1 = plt.bar(ind, men, width)
+    p2 = plt.bar(ind, women, width, bottom=men, color='pink')
+    plt.xticks(ticks, tick_labels)
+    plt.legend((p1[0], p2[0]), ('Men', 'Women'), loc=2)
+    plt.xlabel('Age group')
+    plt.ylabel('Total viewing time (minutes)')
+    
+    return
+
+
+
 
 ###################################################################################
 # FUNCTIONS THAT USE FACEBOOK MODULE BELOW. WORKING ON DEPRECATING.
@@ -369,7 +357,8 @@ def get_insight_date_range(
     
     return df
 
-###################################################################################
+#---------------------------------------------------------------------------------
+
 
 def get_cities_date_range(graph, object_id, date_range=['2016-05-01', '2016-10-04']):
     
@@ -416,7 +405,8 @@ def get_cities_date_range(graph, object_id, date_range=['2016-05-01', '2016-10-0
     
     return df
 
-###################################################################################
+#---------------------------------------------------------------------------------
+
 
 # def get_insight(graph, object_id, metric):
 #     """
