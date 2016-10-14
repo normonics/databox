@@ -32,7 +32,7 @@ def get_object(access_token, object_id, fields=None):
         fields_string = ''
 
     query_url = (
-        'https://graph.facebook.com/v2.5/' + object_id + 
+        'https://graph.facebook.com/v2.6/' + object_id + 
         '?access_token=' + access_token +
         fields_string
         )
@@ -46,7 +46,7 @@ def introspect(access_token, object_id):
     Returns a facebook node's available edges (connections) and fields
     '''
     query_url = (
-        'https://graph.facebook.com/v2.5/' + object_id + 
+        'https://graph.facebook.com/v2.6/' + object_id + 
         '?access_token=' + access_token + '&metadata=1'
         )
 
@@ -114,11 +114,27 @@ def get_insight_since_until(access_token, object_id, metric, since, until, perio
 
 #---------------------------------------------------------------------------------
 
+def get_weekly_fan_change(access_token, page_id, date):
+    last_week_date = str(string_to_datetime(date) - datetime.timedelta(weeks=1))[0:10]
+    date = str(string_to_datetime(date) + datetime.timedelta(days=1))[0:10]
+    fb_response = get_insight(access_token, page_id, metric='page_fans', since=last_week_date, until=date)
+    
+    fan_count_this_week = fb_response['data'][0]['values'][7]['value']
+    fan_count_last_week = fb_response['data'][0]['values'][0]['value']
+    fan_count_change = fan_count_this_week-fan_count_last_week
+
+    print 'Total fans this week: ' + str(fan_count_this_week)
+    print 'Total fans last week: ' + str(fan_count_last_week)
+    print 'Net change: ' + str(fan_count_change)
+    
+    return fan_count_this_week, fan_count_last_week, fan_count_change
+
+#---------------------------------------------------------------------------------
+
 def get_positive_feedback_week(access_token, page_id, date):
     
-    next_date = date[0:9] + str(int(date[9])+1)
-    
-    fb_response = get_insight_since_until(access_token, page_id, 'page_positive_feedback_by_type', date, next_date)
+    next_date = str(string_to_datetime(date) + datetime.timedelta(days=1))[0:10]
+    fb_response = get_insight(access_token, page_id, 'page_positive_feedback_by_type', since=date, until=next_date)
     
     def extract_week(fb_response):
         for entry in fb_response['data']:
@@ -126,11 +142,8 @@ def get_positive_feedback_week(access_token, page_id, date):
                 return entry
             
     week_data = extract_week(fb_response)
-    
     df = pd.DataFrame(index=[string_to_datetime(date)], data=week_data['values'][0]['value'])
-    
     del df['answer'], df['claim'], df['rsvp']
-    
     df['total'] = df.sum(axis=1).values[0]
     
     return df
@@ -138,10 +151,11 @@ def get_positive_feedback_week(access_token, page_id, date):
 #---------------------------------------------------------------------------------
 
 def get_story_tellers_by_city(access_token, object_id, date, period='week'):
-    next_date = date[0:9] + str(int(date[9])+1)
+    next_date = str(string_to_datetime(date) + datetime.timedelta(days=1))[0:10]
     
     fb_response = get_insight(access_token, object_id, 'page_storytellers_by_city', 
                                           since=date, until=next_date, period=period)
+    
     
     city_counts = fb_response['data'][0]['values'][0]['value']
     cities_df = pd.DataFrame()
@@ -154,6 +168,96 @@ def get_story_tellers_by_city(access_token, object_id, date, period='week'):
         cities_df.loc[city, 'lon'] = location.longitude
     
     return cities_df
+
+#---------------------------------------------------------------------------------
+
+def get_page_fans_city(access_token, object_id, date):
+    next_date = str(string_to_datetime(date) + datetime.timedelta(days=1))[0:10]
+    
+    fb_response = get_insight(access_token, object_id, 'page_fans_city', 
+                                          since=date, until=next_date)
+    
+    
+    city_counts = fb_response['data'][0]['values'][0]['value']
+    cities_df = pd.DataFrame()
+    geolocator = Nominatim()
+
+    for city in city_counts:
+        cities_df.loc[city, 'count'] = city_counts[city]
+        location = geolocator.geocode(city)
+        cities_df.loc[city, 'lat'] = location.latitude
+        cities_df.loc[city, 'lon'] = location.longitude
+    
+    return cities_df
+#---------------------------------------------------------------------------------
+
+def map_page_fans_city(access_token, object_id, date, markersize=1):
+    
+    cities = get_page_fans_city(access_token, object_id, date)
+    
+    plt.figure(figsize=(8,8))
+
+    my_map = Basemap(projection='merc', 
+                     llcrnrlon=-125, llcrnrlat=24,
+                     urcrnrlon=-66, urcrnrlat=51,
+                     resolution='l', area_thresh=1000.0)
+
+    my_map.drawcoastlines()
+    my_map.drawcountries()
+    my_map.drawstates()
+    # my_map.fillcontinents(color='green')
+
+    x,y = my_map(cities.lon.values, cities.lat.values)
+    my_map.scatter(x, y, s=cities['count'].values*markersize)
+
+    plt.show()
+
+    return cities
+#---------------------------------------------------------------------------------
+
+def get_page_impressions_by_city_unique(access_token, object_id, date, period='week'):
+    next_date = str(string_to_datetime(date) + datetime.timedelta(days=1))[0:10]
+    
+    fb_response = get_insight(access_token, object_id, 'page_impressions_by_city_unique', 
+                                          since=date, until=next_date, period=period)
+    
+    
+    city_counts = fb_response['data'][0]['values'][0]['value']
+    cities_df = pd.DataFrame()
+    geolocator = Nominatim()
+
+    for city in city_counts:
+        cities_df.loc[city, 'count'] = city_counts[city]
+        location = geolocator.geocode(city)
+        cities_df.loc[city, 'lat'] = location.latitude
+        cities_df.loc[city, 'lon'] = location.longitude
+    
+    return cities_df
+
+#---------------------------------------------------------------------------------
+
+def map_page_impressions_by_city_unique(access_token, object_id, date, period='week', markersize=1):
+    
+    cities = get_page_impressions_by_city_unique(access_token, object_id, date, period)
+    
+    plt.figure(figsize=(8,8))
+
+    my_map = Basemap(projection='merc', 
+                     llcrnrlon=-125, llcrnrlat=24,
+                     urcrnrlon=-66, urcrnrlat=51,
+                     resolution='l', area_thresh=1000.0)
+
+    my_map.drawcoastlines()
+    my_map.drawcountries()
+    my_map.drawstates()
+    # my_map.fillcontinents(color='green')
+
+    x,y = my_map(cities.lon.values, cities.lat.values)
+    my_map.scatter(x, y, s=cities['count'].values*markersize)
+
+    plt.show()
+
+    return cities
 
 #---------------------------------------------------------------------------------
     
@@ -180,7 +284,7 @@ def map_story_tellers_by_city(access_token, object_id, date, period='week'):
 
 #---------------------------------------------------------------------------------
 
-def draw_video_view_map(access_token, post_id):
+def draw_video_view_map(access_token, post_id, save=None):
     fb_response = get_insight(access_token, post_id, metric='post_video_view_time_by_region_id')
     df = pd.DataFrame.from_dict(fb_response['data'][0]['values'][0]['value'], orient='index')
     df.columns = ['view_time']
@@ -192,24 +296,40 @@ def draw_video_view_map(access_token, post_id):
         return string[0:-16]
 
     df.index = df.index.map(remove_suffix)
-    df['view_time'] = df['view_time'].values / float(df['view_time'].max())
+    df['view_time_normalized'] = df['view_time'].values / float(df['view_time'].max())
+    df['view_time'] = df['view_time'].values / 60000.0
     fig = plt.figure(figsize=(20,10))
 
-    ax1 = plt.subplot2grid((2,6), (0,0))
+    ax1 = plt.subplot2grid((2,3), (0,0))
     map1 = Basemap(llcrnrlon=-179.15,llcrnrlat=51.21,urcrnrlon=-129.98,urcrnrlat=71.44,
             projection='merc')
     map1.readshapefile(this_dir + '/geodata/cb_2015_us_state_20m', name='states', drawbounds=True)
+    map1.drawmapboundary(fill_color='lightgray')
 
-    ax2 = plt.subplot2grid((2,6), (1,0))
+    ax2 = plt.subplot2grid((2,3), (1,0))
     map2 = Basemap(llcrnrlon=-160.25, llcrnrlat=18.91, urcrnrlon=-154.81, urcrnrlat=22.24,
             projection='merc')
     map2.readshapefile(this_dir + '/geodata/cb_2015_us_state_20m', name='states', drawbounds=True)
+    map2.drawmapboundary(fill_color='lightgray')
 
-    ax3 = plt.subplot2grid((2,6), (0,1), rowspan=2, colspan=4)
+    ax3 = plt.subplot2grid((2,3), (0,1), rowspan=2)
     map3 = Basemap(llcrnrlon=-119,llcrnrlat=22,urcrnrlon=-64,urcrnrlat=49,
             projection='lcc',lat_1=33,lat_2=45,lon_0=-95)
     map3.readshapefile(this_dir + '/geodata/cb_2015_us_state_20m', name='states', drawbounds=True)
+    map3.drawmapboundary(fill_color='lightgray')
 
+    ax4 = plt.subplot2grid((2,3), (0,2), rowspan=2)
+    ax4.imshow(np.array([np.linspace(0,1)]), cmap=cmap, origin='lower', aspect=8)
+    
+    ax1.set_position([0.00, 0.50, 0.25, 0.40])
+    ax2.set_position([0.00, 0.05, 0.25, 0.30])
+    ax3.set_position([0.15, 0.00, 1.00, 1.00])
+    ax4.set_position([0.3, 0.05, 0.2, 0.1])
+
+    ax4.set_yticks([])
+    ax4.set_xticks([0,49])
+    ax4.set_xticklabels([str(0), str(df.view_time.max())[0:3]])
+    ax4.tick_params(axis='both', which='both', length=0, labelsize=16)
 
 
     # collect the state names from the shapefile attributes so we can
@@ -224,16 +344,25 @@ def draw_video_view_map(access_token, post_id):
         for state_index in state_indices:
 
             seg = map1.states[state_index]
-            poly = Polygon(seg, facecolor=cmap(df.loc[state, 'view_time']) ,edgecolor=cmap(df.loc[state, 'view_time']))
+            poly = Polygon(seg, facecolor=cmap(df.loc[state, 'view_time_normalized']) ,edgecolor=cmap(df.loc[state, 'view_time']))
             ax1.add_patch(poly) 
 
             seg = map2.states[state_index]
-            poly = Polygon(seg, facecolor=cmap(df.loc[state, 'view_time']) ,edgecolor=cmap(df.loc[state, 'view_time']))
+            poly = Polygon(seg, facecolor=cmap(df.loc[state, 'view_time_normalized']) ,edgecolor=cmap(df.loc[state, 'view_time']))
             ax2.add_patch(poly) 
 
             seg = map3.states[state_index]
-            poly = Polygon(seg, facecolor=cmap(df.loc[state, 'view_time']) ,edgecolor=cmap(df.loc[state, 'view_time']))
+            poly = Polygon(seg, facecolor=cmap(df.loc[state, 'view_time_normalized']) ,edgecolor=cmap(df.loc[state, 'view_time']))
             ax3.add_patch(poly) 
+
+    # fig.subplots_adjust(right=0.8)
+    # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    # fig.colorbar(ax3, cax=cbar_ax)
+
+    fig.set_facecolor('lightgray')
+
+    if save:
+    	fig.savefig(save, facecolor=fig.get_facecolor(), edge_color='none', bbox_inches='tight')
 
     plt.show()
 
@@ -262,11 +391,12 @@ def get_video_post_summary(access_token, post_id):
     video_view_count = get_insight(access_token, post_id, metric='post_video_views', period='lifetime')['data'][0]['values'][0]['value']
     share_count = get_object(access_token, post_id, fields='shares')['shares']['count']
     like_count = get_object(access_token, post_id, fields='likes.limit(1).summary(true)')['likes']['summary']['total_count']
+    reaction_count = get_object(access_token, post_id, fields='reactions.limit(1).summary(true)')['reactions']['summary']['total_count']
     comment_count = get_object(access_token, post_id, fields='comments.limit(1).summary(true)')['comments']['summary']['total_count']
 
     print "The Injury Prevention video has been viewed " + str(video_view_count) + " times,"
     print "shared " + str(share_count) + " times,"
-    print "liked " + str(like_count) + " times,"
+    print "reacted to " + str(reaction_count) + " times,"
     print "and commented on " + str(comment_count) + " times."
 
 #---------------------------------------------------------------------------------
@@ -298,6 +428,59 @@ def plot_video_view_time_age_gender(access_token, post_id):
     
     return
 
+#---------------------------------------------------------------------------------
+
+def plot_page_fans_age_gender(access_token, page_id):
+    fb_response = get_insight(access_token, page_id, metric='page_fans_gender_age')
+    gender_age = fb_response['data'][0]['values'][0]['value']
+        
+    width = 0.5
+    ind = np.arange(7)+(1-width)/2
+    ticks = np.arange(7) + 0.5
+    tick_labels = ('13-17', '18-24', '25-34', '35-44', '45-54', '55-64', '65+')
+    
+    men = [gender_age['M.13-17'], gender_age['M.18-24'], gender_age['M.25-34'], gender_age['M.35-44'], 
+          gender_age['M.45-54'], gender_age['M.55-64'], gender_age['M.65+']]
+    
+    women = [gender_age['F.13-17'], gender_age['F.18-24'], gender_age['F.25-34'], gender_age['F.35-44'], 
+          gender_age['F.45-54'], gender_age['F.55-64'], gender_age['F.65+']]
+    
+    p1 = plt.bar(ind, men, width)
+    p2 = plt.bar(ind, women, width, bottom=men, color='pink')
+    plt.xticks(ticks, tick_labels)
+    plt.legend((p1[0], p2[0]), ('Men', 'Women'), loc=2)
+    plt.xlabel('Age group')
+    plt.ylabel('Number of fans')
+    
+    return
+
+#---------------------------------------------------------------------------------
+
+def plot_page_impressions_by_age_gender_unique(access_token, page_id, date, period='week'):
+    next_date = str(string_to_datetime(date) + datetime.timedelta(days=1))[0:10]
+    fb_response = get_insight(access_token, page_id, metric='page_impressions_by_age_gender_unique',
+    							since=date, until=next_date, period=period)
+    gender_age = fb_response['data'][0]['values'][0]['value']
+        
+    width = 0.5
+    ind = np.arange(7)+(1-width)/2
+    ticks = np.arange(7) + 0.5
+    tick_labels = ('13-17', '18-24', '25-34', '35-44', '45-54', '55-64', '65+')
+    
+    men = [gender_age['M.13-17'], gender_age['M.18-24'], gender_age['M.25-34'], gender_age['M.35-44'], 
+          gender_age['M.45-54'], gender_age['M.55-64'], gender_age['M.65+']]
+    
+    women = [gender_age['F.13-17'], gender_age['F.18-24'], gender_age['F.25-34'], gender_age['F.35-44'], 
+          gender_age['F.45-54'], gender_age['F.55-64'], gender_age['F.65+']]
+    
+    p1 = plt.bar(ind, men, width)
+    p2 = plt.bar(ind, women, width, bottom=men, color='pink')
+    plt.xticks(ticks, tick_labels)
+    plt.legend((p1[0], p2[0]), ('Men', 'Women'), loc=2)
+    plt.xlabel('Age group')
+    plt.ylabel('Number of impressions')
+    
+    return
 
 
 
